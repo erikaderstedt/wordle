@@ -4,6 +4,8 @@ use std::fmt;
 use std::io::{stdin,stdout,Write};
 use std::io::prelude::*;
 use colored::*;
+use encoding::{Encoding, EncoderTrap};
+use encoding::all::ISO_8859_1;
 
 #[derive(Copy,Clone)]
 struct Word {
@@ -128,7 +130,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut num_guesses = 0;
     let mut replies = [Reply::NotInWord; 5];
 
-    println!("Initial word list contains {} words.", words.last().unwrap());
+    println!("Initial word list contains {} words.", words.len());
     loop {
         println!("{} guesses made, {} 5-letter words remaining", num_guesses, words.len());
         println!("Suggested guesses: {:?}", Word::suggest(&words));
@@ -136,7 +138,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let _=stdout().flush();
         let mut s = String::new();
         stdin().read_line(&mut s).expect("Did not enter a correct string");
-        let word = Word::from_bytes(s.as_bytes()).unwrap();
+        let a = ISO_8859_1.encode(&s, EncoderTrap::Ignore).expect("Invalid ISO 8859-1 string");
+        let word = Word::from_bytes(&a).unwrap();
         for i in 0..5 {
             loop {
                 print!("Letter {} ('{}'): (C)orrect, (N)ot in word, (W)rong Location? ", i+1, word.letters[i] as char);
