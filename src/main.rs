@@ -1,27 +1,31 @@
 use std::fs;
 use std::error::Error;
 use std::fmt;
+use std::str::FromStr;
 use std::io::{stdin,stdout,Write};
-use std::io::prelude::*;
 use colored::*;
-use encoding::{Encoding, EncoderTrap};
-use encoding::all::ISO_8859_1;
 
 #[derive(Copy,Clone)]
 struct Word {
-    letters: [u8; 5]
+    letters: [char; 5]
 }
 
-fn is_letter(a: u8) -> bool {
-    (a >= b'a' && a <= b'z') || a == 246 || a == 228 || a == 229
-}
+impl FromStr for Word {
+    type Err = &'static str;
 
-impl Word {
-    fn from_bytes(a: &[u8]) -> Option<Word> {
-        if is_letter(a[0]) && is_letter(a[1]) && is_letter(a[2]) && is_letter(a[3]) && is_letter(a[4]) {
-            Some(Word { letters: [a[0], a[1], a[2], a[3], a[4]] })
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let c: Vec<char> = s.trim().chars().collect();
+        if c.len() != 5 {
+            println!("-{}-", s);
+            Err("Not a five-letter word.")
         } else {
-            None
+            Ok(Word {
+                letters: [c[0].to_ascii_lowercase(), 
+                        c[1].to_ascii_lowercase(), 
+                        c[2].to_ascii_lowercase(), 
+                        c[3].to_ascii_lowercase(), 
+                        c[4].to_ascii_lowercase()]
+            })
         }
     }
 }
@@ -43,15 +47,11 @@ impl fmt::Debug for Word {
 }
 
 fn load_words(s: &str) -> Vec<Word> {
-    let mut a = [0u8;6];
-    let mut f = fs::File::open(s).expect("Unable to open input file");
-    let mut v: Vec<Word> = Vec::with_capacity(5000);
-    while f.read_exact(&mut a).is_ok() {
-        if let Some(w) = Word::from_bytes(&a) {
-            v.push(w)
-        }
-    }
-    v
+    fs::read_to_string(s)
+        .expect("Unable to open input file")
+        .lines()
+        .filter_map(|line| Word::from_str(line).ok() )
+        .collect()
 }
 
 #[derive(Copy,Clone)]
@@ -66,20 +66,22 @@ impl Word {
     fn update_counts(&self, counts: &mut [usize;29]) {
         for i in 0..5 {
             match self.letters[i] {
-                246 => counts[28] += 1,
-                228 => counts[27] += 1,
-                229 => counts[26] += 1,
-                c => counts[(c - 97) as usize] += 1,
+                'ö' => counts[28] += 1,
+                'ä' => counts[27] += 1,
+                'å' => counts[26] += 1,
+                c if (c as u8) - 97 < 29 => counts[((c as u8) - 97) as usize] += 1,
+                _ => (),
             }
         }
     }
 
     fn score_from_counts(&self, counts: &[usize;29]) -> usize {
         (0..5).map(|i| match self.letters[i] {
-                246 => counts[28],
-                228 => counts[27],
-                229 => counts[26],
-                c => counts[(c - 97) as usize],
+                'ö' => counts[28],
+                'ä' => counts[27],
+                'å' => counts[26],
+                c if (c as u8) - 97 < 29 => counts[((c as u8) - 97) as usize],
+                _ => 1,
             }).product()
     }
 
@@ -134,12 +136,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     loop {
         println!("{} guesses made, {} 5-letter words remaining", num_guesses, words.len());
         println!("Suggested guesses: {:?}", Word::suggest(&words));
+        if words.len() <= 5 {
+            println!("  (all remaining words: {:?})", words);
+        }
         print!("Guess: ");
         let _=stdout().flush();
         let mut s = String::new();
         stdin().read_line(&mut s).expect("Did not enter a correct string");
-        let a = ISO_8859_1.encode(&s, EncoderTrap::Ignore).expect("Invalid ISO 8859-1 string");
-        let word = Word::from_bytes(&a).unwrap();
+        let word = Word::from_str(&s).unwrap();
         for i in 0..5 {
             loop {
                 print!("Letter {} ('{}'): (C)orrect, (N)ot in word, (W)rong Location? ", i+1, word.letters[i] as char);
